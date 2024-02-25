@@ -205,17 +205,19 @@ impl Display for D2Table {
             .clone()
             .into_iter()
             .map(|col| {
-                format!(
-                    "\t{}: {} {{constraint: {}}}",
-                    col.name,
-                    col.data_type,
-                    col.constraint
-                        .into_iter()
-                        .map(|x| x.to_string())
-                        .filter(|x| !x.is_empty())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                let col_constraints = col
+                    .constraint
+                    .into_iter()
+                    .map(|x| x.to_string())
+                    .filter(|x| !x.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let col_with_type = format!("\t{}: {}", col.name, col.data_type);
+                if col_constraints.is_empty() {
+                    col_with_type
+                } else {
+                    format!("{} {{constraint: {}}}", col_with_type, col_constraints)
+                }
             })
             .collect::<Vec<_>>()
             .join("\n");

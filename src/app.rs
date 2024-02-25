@@ -1,4 +1,10 @@
+use std::env;
+use std::{fs::OpenOptions, io::prelude::Write, path::Path};
+
 use std::rc::Rc;
+use std::process::{Command, Stdio};
+
+
 
 use dioxus::prelude::*;
 
@@ -45,9 +51,12 @@ pub fn NavBar(cx: Scope) -> Element {
     })
 }
 
+// todo: clean up this component
 pub fn MainContent(cx: Scope) -> Element {
     let query = use_state(cx, String::new);
     let count = use_state(cx, || String::new());
+
+    let mut d2_ast: Vec<String> = vec![];
 
     if !query.is_empty() {
         let result = parse_query(query);
@@ -61,7 +70,14 @@ pub fn MainContent(cx: Scope) -> Element {
             crate::parser::QueryAst::InvalidSQL(err_msg) => err_msg,
         };
 
-        println!("{:#?}", ast_str)
+        d2_ast.push(ast_str)
+    }
+
+    let mut img_sources = vec![];
+    if !d2_ast.is_empty() {
+        for item in d2_ast {
+            img_sources.push(generate_d2(item))
+        }
     }
 
     cx.render(rsx! {
@@ -124,13 +140,21 @@ pub fn MainContent(cx: Scope) -> Element {
                     },
                     div {
                         class: "p-2",
-                        pre {
-                            code {
-                                CodeHighlight{snippet: CodeSnippet{text: Rc::new(query)}}
+                        div {
+                            for img_path in img_sources {
+                                img {
+                                    class: "text-zinc-800",
+                                    src: "{img_path}",
+                                }
                             }
                         }
                         div {
-                            "{count}"
+                            class: "p-2",
+                            pre {
+                                code {
+                                    CodeHighlight{snippet: CodeSnippet{text: Rc::new(query)}}
+                                }
+                            }
                         }
                     }
                 }
@@ -214,4 +238,33 @@ pub fn play_icon(cx: Scope) -> Element {
             }
         }
     ))
+}
+
+fn write_specs<P: AsRef<Path>>(data: &str, write_path: P) -> std::io::Result<()> {
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(write_path)?;
+
+    writeln!(&file, "{}", data)?;
+
+    Ok(())
+}
+
+pub fn generate_d2(d2lang: String) -> String {
+    let output_file = "public/d2lang/output.svg";
+
+    let curr_dir = env::current_dir().unwrap();
+    let write_path = curr_dir.join("public/d2lang/input.d2");
+    write_specs(d2lang.as_str(), write_path).expect("Failed to write d2lang to file.");
+
+    let input = "./public/d2lang/input.d2";
+    let output = "./public/d2lang/output.svg";
+
+    let mut cmd = Command::new("d2");
+    let result = cmd.args([input, output]).stdin(Stdio::piped()).stdout(Stdio::piped());
+
+    result.output().expect("Process failed");
+
+    output_file.to_string()
 }
